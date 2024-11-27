@@ -34,5 +34,5 @@ Celem tego projektu jest zaimplementowanie agenta uczącego się metodą **Deep 
 
 1. **Klonowanie repozytorium**:
    ```bash
-   git clone https://github.com/TwojeRepozytorium/lunar-lander-dqn.git
+   git clone https://github.com/Mychal003/Projekt-sieci-neuronowe.git
    cd lunar-lander-dqn
