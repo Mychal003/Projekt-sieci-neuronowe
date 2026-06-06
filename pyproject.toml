@@ -1,0 +1,25 @@
+[project]
+name = "projekt-sieci-neuronowe"
+version = "0.1.0"
+description = "Lunar landing using DQN"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy==1.26.3",
+    "torch==2.4.1",
+    "gym==0.25.2",
+    "matplotlib==3.9.2",
+    "seaborn==0.13.2",
+    "pygame==2.6.1",
+    "box2d-py==2.3.5",
+    "scipy==1.13.1",
+    "pandas==2.2.3",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu121" }
