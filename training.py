@@ -2,28 +2,49 @@ import os
 import json
 import gymnasium as gym
 from collections import deque
+import sys
 import numpy as np
 import random
 import torch
 import time
+import wandb
 from dqnagent import DQNAgent
 
 MAX_EPISODES = 500
 MAX_STEPS = 1000
 RECORD_FREQ = max(1, MAX_EPISODES // 5)
 
-SEED = 42
-random.seed(SEED)
-np.random.seed(SEED)
-torch.manual_seed(SEED)
-if torch.cuda.is_available():
-    torch.cuda.manual_seed(SEED)
-    torch.cuda.manual_seed_all(SEED)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
 
+def train(custom_config=None, run_name=None, tags=None):
+    if custom_config is not None:
+        wandb.init(
+            project="dqn-lunar-lander", config=custom_config, name=run_name, tags=tags
+        )
+    else:
+        wandb.init()
 
-def run_experiment(hyperparams, experiment_name):
+    config = wandb.config
+    experiment_name = wandb.run.name
+
+    seed = config.seed
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
+    hyperparams = {
+        "lr": config.lr,
+        "batch_size": config.batch_size,
+        "epsilon_decay": config.epsilon_decay,
+        "target_update_steps": config.target_update_steps,
+        "hidden_sizes": tuple(config.hidden_sizes),
+        "gamma": config.gamma,
+    }
+
     env = gym.make("LunarLander-v3", render_mode="rgb_array")
     env = gym.wrappers.RecordVideo(
         env,
@@ -31,8 +52,8 @@ def run_experiment(hyperparams, experiment_name):
         episode_trigger=lambda episode: episode % RECORD_FREQ == 0,
         disable_logger=True,
     )
-    env.action_space.seed(SEED)
-    env.observation_space.seed(SEED)
+    env.action_space.seed(seed)
+    env.observation_space.seed(seed)
     input_size = env.observation_space.shape[0]
     output_size = env.action_space.n
 
@@ -50,7 +71,7 @@ def run_experiment(hyperparams, experiment_name):
     os.makedirs("models", exist_ok=True)
     os.makedirs("metrics", exist_ok=True)
 
-    state, _ = env.reset(seed=SEED)
+    state, _ = env.reset(seed=seed)
 
     start_time = time.perf_counter()
     for episode in range(MAX_EPISODES):
@@ -85,6 +106,17 @@ def run_experiment(hyperparams, experiment_name):
         current_avg = float(np.mean(recent_rewards))
         moving_avg_history.append(current_avg)
 
+        wandb.log(
+            {
+                "episode": episode,
+                "total_reward": total_reward,
+                "moving_avg_reward": current_avg,
+                "loss": avg_loss,
+                "epsilon": agent.epsilon,
+                "steps": step,
+            }
+        )
+
         if len(recent_rewards) >= 50 and current_avg > best_avg_reward:
             best_avg_reward = current_avg
             torch.save(agent.model.state_dict(), f"models/{experiment_name}_best.pth")
@@ -113,38 +145,47 @@ def run_experiment(hyperparams, experiment_name):
         json.dump(metrics, f)
 
     env.close()
+    wandb.finish()
     return rewards_history
 
 
 if __name__ == "__main__":
-    base_params = {
+    if len(sys.argv) == 3 and sys.argv[1] == "--agent":
+        sweep_id = sys.argv[2]
+        wandb.agent(sweep_id, function=train, project="dqn-lunar-lander")
+        sys.exit(0)
+
+    baseline_config = {
         "lr": 1e-4,
         "batch_size": 64,
         "epsilon_decay": 0.995,
         "target_update_steps": 1000,
-        "hidden_sizes": (128, 128),
+        "hidden_sizes": [128, 128],
         "gamma": 0.99,
+        "seed": 42,
     }
 
-    experiments = {
-        "lr": [5e-4, 1e-3],
-        "epsilon_decay": [0.99, 0.985],
-        "target_update_steps": [500, 2000],
-        "hidden_sizes": [(64, 64)],
-        "batch_size": [32, 128],
-        "gamma": [0.95, 0.999],
+    print("--- Uruchamiam konfigurację bazową (Baseline) ---")
+    train(custom_config=baseline_config, run_name="baseline_run", tags=["baseline"])
+
+    sweep_config = {
+        "method": "random",
+        "metric": {"name": "moving_avg_reward", "goal": "maximize"},
+        "parameters": {
+            "lr": {"values": [1e-4, 5e-4, 1e-3]},
+            "batch_size": {"values": [32, 64, 128]},
+            "epsilon_decay": {"values": [0.99, 0.995, 0.999]},
+            "target_update_steps": {"values": [500, 1000, 2000]},
+            "hidden_sizes": {"values": [[64, 64], [128, 128], [256, 256]]},
+            "gamma": {"values": [0.95, 0.99, 0.999]},
+            "seed": {"value": 42},
+        },
     }
 
-    print("--- Running Baseline ---")
-    run_experiment(base_params, "baseline")
-
-    for param_name, param_values in experiments.items():
-        for val in param_values:
-            current_params = base_params.copy()
-            current_params[param_name] = val
-
-            val_str = "_".join(map(str, val)) if isinstance(val, tuple) else str(val)
-            experiment_name = f"{param_name}_{val_str}"
-
-            print(f"\n--- Running Experiment: {experiment_name} ---")
-            run_experiment(current_params, experiment_name)
+    # Initiate the sweep on the W&B server
+    sweep_id = wandb.sweep(sweep_config, project="dqn-lunar-lander")
+    print(f"Sweep initiated! ID: {sweep_id}")
+    print(
+        "\nTo run agents in parallel, execute the following command multiple times in your terminal:"
+    )
+    print(f"uv run python training.py --agent {sweep_id} &")
