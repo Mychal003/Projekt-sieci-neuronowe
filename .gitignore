@@ -219,9 +219,3 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-
-*.key
-wandb/
-metrics/
-models/
-records/
