@@ -226,3 +226,4 @@ metrics/
 models/
 records/
 wandb/
+plots/

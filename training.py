@@ -116,29 +116,30 @@ def run_experiment(hyperparams, experiment_name):
     return rewards_history
 
 
-if __name__ == "__main__":
-    base_params = {
-        "lr": 1e-4,
-        "batch_size": 64,
-        "epsilon_decay": 0.995,
-        "target_update_steps": 1000,
-        "hidden_sizes": (128, 128),
-        "gamma": 0.99,
-    }
+experiments_config = {
+    "lr": [5e-4, 1e-3],
+    "epsilon_decay": [0.99, 0.985],
+    "target_update_steps": [500, 2000],
+    "hidden_sizes": [(64, 64)],
+    "batch_size": [32, 128],
+    "gamma": [0.95, 0.999],
+}
 
-    experiments = {
-        "lr": [5e-4, 1e-3],
-        "epsilon_decay": [0.99, 0.985],
-        "target_update_steps": [500, 2000],
-        "hidden_sizes": [(64, 64)],
-        "batch_size": [32, 128],
-        "gamma": [0.95, 0.999],
-    }
+base_params = {
+    "lr": 1e-4,
+    "batch_size": 64,
+    "epsilon_decay": 0.995,
+    "target_update_steps": 1000,
+    "hidden_sizes": (128, 128),
+    "gamma": 0.99,
+}
+
+if __name__ == "__main__":
 
     print("--- Running Baseline ---")
     run_experiment(base_params, "baseline")
 
-    for param_name, param_values in experiments.items():
+    for param_name, param_values in experiments_config.items():
         for val in param_values:
             current_params = base_params.copy()
             current_params[param_name] = val
