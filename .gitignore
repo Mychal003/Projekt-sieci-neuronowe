@@ -222,8 +222,8 @@ __marimo__/
 
 *.key
 
-metrics/
-models/
-records/
+# metrics/
+# models/
+# records/
+# plots/
 wandb/
-plots/
